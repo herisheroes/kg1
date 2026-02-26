@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Galaksi Matematika - Math Galaxy Racer</title>
+    <!-- Memuat Three.js r128 dari CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            /* Latar Belakang Luar Angkasa (Nebula/Galaxy) */
+            background-image: url('https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?ixlib=rb-1.2.1&auto=format&fit=crop&w=1952&q=80');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none; /* Mencegah seleksi teks */
+            -webkit-user-select: none;
+            touch-action: none; /* Mencegah zoom/scroll browser default */
+        }
+
+        /* HUD Container Utama - Flexbox Responsif */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 2vmin; /* Padding responsif */
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Bagian Kiri: Skor & Nyawa */
+        .hud-left {
+            display: flex;
+            flex-direction: column;
+            gap: 1vh;
+        }
+
+        /* Bagian Kanan: Level */
+        .hud-right {
+            text-align: right;
+        }
+
+        .hud-text {
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+            font-size: 4vmin; /* Ukuran font menyesuaikan layar */
+            font-weight: bold;
+            margin: 0;
+        }
+
+        /* Visual Nyawa Futuristik (Energy Bars) */
+        #lives-container {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .life-bar {
+            width: 8vmin;
+            height: 1.5vmin;
+            background-color: #ff0055;
+            border: 1px solid #fff;
+            box-shadow: 0 0 10px #ff0055;
+            transform: skewX(-20deg); /* Efek miring sci-fi */
+            opacity: 0.3; /* Default mati/kosong */
+            transition: all 0.3s ease;
+        }
+
+        .life-bar.active {
+            background-color: #00ff00; /* Hijau saat penuh */
+            box-shadow: 0 0 15px #00ff00;
+            opacity: 1;
+        }
+
+        .life-bar.critical {
+            background-color: #ff0000; /* Merah saat kritis */
+            box-shadow: 0 0 15px #ff0000;
+            opacity: 1;
+        }
+
+        /* Container Soal */
+        #question-container {
+            position: absolute;
+            top: 12vh; /* Jarak dari atas relatif terhadap tinggi layar */
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #ff00ff;
+            padding: 1.5vmin 4vmin;
+            border-radius: 15px;
+            box-shadow: 0 0 20px #ff00ff;
+            text-align: center;
+            width: auto;
+            min-width: 30%;
+            max-width: 90%;
+            pointer-events: none;
+        }
+
+        #question-text {
+            color: #fff;
+            font-size: 5vmin; /* Responsif */
+            font-weight: bold;
+            margin: 0;
+            white-space: nowrap;
+        }
+
+        /* Label Jawaban Melayang */
+        .answer-label {
+            position: absolute;
+            color: #fff;
+            font-weight: bold;
+            font-size: 4vmin; /* Lebih besar di mobile */
+            background: rgba(0, 0, 0, 0.6);
+            padding: 0.5em 1em;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        /* Layar Game Over & Start - Responsif */
+        #game-over, #start-screen {
+            display: none; /* Default hidden */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        #start-screen {
+            display: flex; /* Awal muncul */
+        }
+
+        h1 {
+            font-size: 8vmin;
+            color: #ff0055;
+            text-shadow: 0 0 20px #ff0055;
+            margin-bottom: 2vh;
+        }
+
+        p {
+            font-size: 3.5vmin;
+            margin: 1vh 0;
+        }
+
+        button {
+            background: linear-gradient(45deg, #00ffff, #0088ff);
+            border: none;
+            padding: 2vmin 6vmin;
+            font-size: 4vmin;
+            font-family: inherit;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+            margin-top: 3vh;
+            border-radius: 50px;
+            box-shadow: 0 0 20px #00ffff;
+            transition: transform 0.1s, box-shadow 0.3s;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .controls-hint {
+            margin-top: 20px;
+            color: #aaaaaa;
+            font-size: 2.5vmin;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HUD Baru -->
+    <div id="hud">
+        <div class="hud-left">
+            <div class="hud-text">SKOR: <span id="score">0</span></div>
+            <!-- Visual Nyawa Bar -->
+            <div id="lives-container">
+                <div class="life-bar active" id="life-1"></div>
+                <div class="life-bar active" id="life-2"></div>
+                <div class="life-bar active" id="life-3"></div>
+            </div>
+        </div>
+        
+        <div class="hud-right">
+            <div class="hud-text">LEVEL: <span id="level">1</span></div>
+        </div>
+    </div>
+
+    <!-- Soal Matematika -->
+    <div id="question-container">
+        <div id="question-text">SIAP?</div>
+    </div>
+
+    <!-- Layar Game Over -->
+    <div id="game-over">
+        <h1>GAME OVER</h1>
+        <p>Skor Akhir: <span id="final-score" style="color:#00ffff; font-weight:bold;">0</span></p>
+        <button onclick="resetGame()">MAIN LAGI</button>
+    </div>
+
+    <!-- Layar Mulai -->
+    <div id="start-screen">
+        <h1 style="color: #00ffff; text-shadow: 0 0 20px #00ffff;">GALAKSI MATEMATIKA</h1>
+        <p>Tabrak jawaban BENAR, hindari yang SALAH!</p>
+        <p class="controls-hint">Geser Layar (Touch) atau Keyboard Panah</p>
+        <button onclick="startGame()">MULAI MISI</button>
+    </div>
+
+    <!-- Container untuk label jawaban dinamis -->
+    <div id="labels-container"></div>
+
+    <script>
+        // --- KONFIGURASI GLOBAL ---
+        const LANE_WIDTH = 6; 
+        const LANES = [-LANE_WIDTH, 0, LANE_WIDTH]; 
+        let currentLaneIndex = 1; 
+
+        let scene, camera, renderer;
+        let ship;
+        let stars, starGeo;
+        
+        // State Game
+        let isPlaying = false;
+        let speed = 0.5;
+        let score = 0;
+        let lives = 3; 
+        let level = 1;
+        
+        // Logika Soal & Gerbang
+        let currentQuestion = {};
+        let gates = []; 
+        let spawnTimer = 0;
+        let spawnInterval = 120; 
+        
+        let explosions = [];
+
+        // DOM Elements
+        const scoreEl = document.getElementById('score');
+        const levelEl = document.getElementById('level');
+        const finalScoreEl = document.getElementById('final-score');
+        const questionText = document.getElementById('question-text');
+        const gameOverScreen = document.getElementById('game-over');
+        const startScreen = document.getElementById('start-screen');
+        const labelsContainer = document.getElementById('labels-container');
+        
+        // Elemen Nyawa (Bar)
+        const lifeBars = [
+            document.getElementById('life-1'),
+            document.getElementById('life-2'),
+            document.getElementById('life-3')
+        ];
+
+        // Variabel Touch / Swipe
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        // --- INISIALISASI THREE.JS ---
+        function init() {
+            scene = new THREE.Scene();
+            // Fog tetap hitam agar objek yang jauh terlihat memudar ke dalam kegelapan
+            scene.fog = new THREE.FogExp2(0x000000, 0.02); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            updateCameraPosition(); // Set posisi awal kamera responsif
+
+            // Tambahkan alpha: true agar background canvas transparan dan background CSS terlihat
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Optimasi performa HP
+            // Set clear color transparan
+            renderer.setClearColor(0x000000, 0);
+            
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+
+            createShip();
+            createStarfield();
+            createGrid();
+
+            // Event Listeners Responsif
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Input Keyboard
+            document.addEventListener('keydown', handleKeyboard);
+            
+            // Input Touch (Geser/Swipe)
+            document.addEventListener('touchstart', handleTouchStart, { passive: false });
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+            animate();
+        }
+
+        // --- KONTROL & INPUT ---
+
+        function moveLeft() {
+            if (currentLaneIndex > 0) currentLaneIndex--;
+        }
+
+        function moveRight() {
+            if (currentLaneIndex < 2) currentLaneIndex++;
+        }
+
+        function handleKeyboard(event) {
+            if (!isPlaying) return;
+            if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') moveLeft();
+            if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') moveRight();
+        }
+
+        function handleTouchStart(event) {
+            if (!isPlaying) return;
+            touchStartX = event.changedTouches[0].screenX;
+        }
+
+        function handleTouchMove(event) {
+            // Mencegah scroll layar saat bermain
+            if(isPlaying) event.preventDefault();
+        }
+
+        function handleTouchEnd(event) {
+            if (!isPlaying) return;
+            touchEndX = event.changedTouches[0].screenX;
+            handleSwipe();
+        }
+
+        function handleSwipe() {
+            const threshold = 50; // Jarak geser minimal pixel
+            const swipeDistance = touchEndX - touchStartX;
+
+            if (swipeDistance > threshold) {
+                moveRight(); // Geser Kanan
+            } else if (swipeDistance < -threshold) {
+                moveLeft(); // Geser Kiri
+            }
+        }
+
+        // --- PEMBUATAN OBJEK (Sama seperti sebelumnya) ---
+
+        function createShip() {
+            const shipGroup = new THREE.Group();
+            const bodyGeo = new THREE.ConeGeometry(0.5, 2, 8);
+            const bodyMat = new THREE.MeshStandardMaterial({ 
+                color: 0x00ffff, roughness: 0.3, metalness: 0.8, 
+                emissive: 0x0044ff, emissiveIntensity: 0.5 
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.rotation.x = Math.PI / 2; 
+            body.rotation.z = Math.PI;
+            shipGroup.add(body);
+
+            const wingGeo = new THREE.BoxGeometry(2.5, 0.1, 0.8);
+            const wingMat = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0x440044 });
+            const wings = new THREE.Mesh(wingGeo, wingMat);
+            wings.position.set(0, 0, 0.2);
+            shipGroup.add(wings);
+
+            const engineGeo = new THREE.CylinderGeometry(0.2, 0.1, 0.5, 8);
+            const engineMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+            const engine = new THREE.Mesh(engineGeo, engineMat);
+            engine.rotation.x = Math.PI / 2;
+            engine.position.set(0, 0, 1.2);
+            shipGroup.add(engine);
+
+            ship = shipGroup;
+            scene.add(ship);
+        }
+
+        function createStarfield() {
+            starGeo = new THREE.BufferGeometry();
+            const starCount = 2000;
+            const posArray = new Float32Array(starCount * 3);
+            for(let i=0; i<starCount * 3; i++) posArray[i] = (Math.random() - 0.5) * 400;
+            starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true });
+            stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+        }
+
+        function createGrid() {
+            const gridHelper = new THREE.GridHelper(200, 50, 0xff00ff, 0x220022);
+            gridHelper.position.y = -2;
+            scene.add(gridHelper);
+        }
+
+        // --- LOGIKA GAME ---
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            resetGameValues();
+            isPlaying = true;
+            generateQuestion();
+        }
+
+        function resetGame() {
+            gameOverScreen.style.display = 'none';
+            resetGameValues();
+            isPlaying = true;
+            generateQuestion();
+        }
+
+        function resetGameValues() {
+            score = 0;
+            lives = 3; 
+            level = 1;
+            speed = 0.4;
+            currentLaneIndex = 1;
+            spawnInterval = 120;
+            updateHUD();
+
+            ship.position.x = 0;
+            ship.rotation.z = 0;
+
+            gates.forEach(g => {
+                scene.remove(g.mesh);
+                if(g.labelEl) g.labelEl.remove();
+            });
+            gates = [];
+        }
+
+        function generateQuestion() {
+            const maxNum = 5 + level; 
+            const num1 = Math.floor(Math.random() * maxNum) + 2;
+            const num2 = Math.floor(Math.random() * 9) + 2;
+            const correctAnswer = num1 * num2;
+            
+            let wrong1 = correctAnswer + (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 5) + 1);
+            let wrong2 = correctAnswer + (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 5) + 1);
+            if (wrong1 === correctAnswer) wrong1 += 3;
+            if (wrong2 === correctAnswer || wrong2 === wrong1) wrong2 += 7;
+
+            currentQuestion = {
+                text: `${num1} x ${num2} = ?`,
+                correct: correctAnswer,
+                answers: shuffle([correctAnswer, wrong1, wrong2])
+            };
+            questionText.innerText = currentQuestion.text;
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function spawnGates() {
+            const zStart = -60; 
+            currentQuestion.answers.forEach((ans, index) => {
+                const isCorrect = (ans === currentQuestion.correct);
+                const geometryType = isCorrect ? new THREE.TorusGeometry(1.5, 0.15, 8, 20) : new THREE.TorusGeometry(1.5, 0.1, 8, 20);
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.5, transparent: true, opacity: 0.8
+                });
+                
+                const mesh = new THREE.Mesh(geometryType, material);
+                mesh.position.set(LANES[index], 0, zStart);
+                scene.add(mesh);
+
+                const label = document.createElement('div');
+                label.className = 'answer-label';
+                label.innerText = ans;
+                labelsContainer.appendChild(label);
+
+                gates.push({ mesh: mesh, value: ans, isCorrect: isCorrect, labelEl: label });
+            });
+        }
+
+        function createExplosion(position, color) {
+            const particleCount = 20;
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const velocities = [];
+            for(let i=0; i<particleCount; i++) {
+                positions.push(position.x, position.y, position.z);
+                velocities.push((Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5);
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({ color: color, size: 0.3 });
+            const particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+            explosions.push({ mesh: particles, velocities: velocities, life: 1.0 });
+        }
+
+        function handleDamage() {
+            lives--;
+            updateHUD();
+            createExplosion(ship.position, 0xff0000);
+            
+            // Camera shake sederhana
+            ship.position.y -= 0.5; 
+            setTimeout(() => { ship.position.y += 0.5; }, 100);
+
+            if (lives <= 0) {
+                gameOver();
+            } else {
+                cleanupWave();
+                generateQuestion();
+                spawnTimer = 0; 
+            }
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            finalScoreEl.innerText = score;
+            gameOverScreen.style.display = 'flex';
+            createExplosion(ship.position, 0xff0000);
+        }
+
+        function cleanupWave() {
+            gates.forEach(g => { scene.remove(g.mesh); g.labelEl.remove(); });
+            gates = [];
+        }
+
+        function updateHUD() {
+            scoreEl.innerText = score;
+            levelEl.innerText = level;
+
+            // Update Visual Nyawa (Bar)
+            for (let i = 0; i < 3; i++) {
+                if (i < lives) {
+                    lifeBars[i].classList.add('active');
+                    lifeBars[i].classList.remove('critical');
+                    // Jika nyawa tinggal 1, ubah warna bar terakhir jadi merah
+                    if (lives === 1) lifeBars[i].classList.add('critical');
+                } else {
+                    lifeBars[i].classList.remove('active', 'critical');
+                }
+            }
+        }
+
+        function updateCameraPosition() {
+            // Logika Responsif Kamera
+            const aspect = window.innerWidth / window.innerHeight;
+            if (aspect < 1) {
+                // Mode Portrait (HP): Mundurkan kamera agar area terlihat lebih luas
+                camera.position.set(0, 5, 14); 
+                camera.lookAt(0, 0, -5);
+            } else {
+                // Mode Landscape (Laptop/Desktop)
+                camera.position.set(0, 3, 8);
+                camera.lookAt(0, 0, -5);
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateCameraPosition(); // Sesuaikan posisi saat orientasi berubah
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            stars.rotation.z += 0.001;
+
+            if (isPlaying) {
+                spawnTimer++;
+                const currentInterval = Math.max(40, spawnInterval - (level * 5));
+                if (spawnTimer > currentInterval) {
+                    if (gates.length === 0) {
+                        spawnGates();
+                        spawnTimer = 0;
+                    }
+                }
+
+                const targetX = LANES[currentLaneIndex];
+                ship.position.x += (targetX - ship.position.x) * 0.1;
+                ship.rotation.z = Math.PI + (ship.position.x - targetX) * 0.1;
+
+                for (let i = gates.length - 1; i >= 0; i--) {
+                    const g = gates[i];
+                    g.mesh.position.z += speed;
+
+                    const vector = new THREE.Vector3();
+                    g.mesh.updateMatrixWorld(); 
+                    vector.setFromMatrixPosition(g.mesh.matrixWorld);
+                    vector.y += 1.5; 
+                    vector.project(camera);
+
+                    const x = (vector.x * .5 + .5) * window.innerWidth;
+                    const y = (-(vector.y * .5) + .5) * window.innerHeight;
+
+                    if (vector.z > 1) {
+                        g.labelEl.style.display = 'none';
+                    } else {
+                        g.labelEl.style.display = 'block';
+                        g.labelEl.style.left = `${x}px`;
+                        g.labelEl.style.top = `${y}px`;
+                    }
+
+                    const distZ = Math.abs(g.mesh.position.z - ship.position.z);
+                    const distX = Math.abs(g.mesh.position.x - ship.position.x);
+
+                    if (distZ < 1 && distX < 1.5) {
+                        if (g.isCorrect) {
+                            score += 10;
+                            level = Math.floor(score / 50) + 1;
+                            speed += 0.02; 
+                            createExplosion(g.mesh.position, 0x00ff00);
+                            cleanupWave();
+                            generateQuestion();
+                            updateHUD();
+                            break; 
+                        } else {
+                            handleDamage();
+                            break; 
+                        }
+                    }
+
+                    if (g.mesh.position.z > 5) {
+                        scene.remove(g.mesh);
+                        g.labelEl.remove();
+                        gates.splice(i, 1);
+                        if (gates.length === 0 && isPlaying) handleDamage();
+                    }
+                }
+            }
+
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const ex = explosions[i];
+                const positions = ex.mesh.geometry.attributes.position.array;
+                for(let j=0; j < positions.length; j+=3) {
+                    positions[j] += ex.velocities[j];     
+                    positions[j+1] += ex.velocities[j+1]; 
+                    positions[j+2] += ex.velocities[j+2]; 
+                }
+                ex.mesh.geometry.attributes.position.needsUpdate = true;
+                ex.life -= 0.02;
+                ex.mesh.material.opacity = ex.life;
+                if (ex.life <= 0) {
+                    scene.remove(ex.mesh);
+                    explosions.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
