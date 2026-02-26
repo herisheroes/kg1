@@ -150,6 +150,11 @@
         
         #start-screen {
             display: flex; /* Awal muncul */
+            /* Menambahkan background gambar lokal dengan overlay gelap agar teks tetap terbaca */
+            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('backkg1.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
 
         h1 {
@@ -188,6 +193,59 @@
             color: #aaaaaa;
             font-size: 2.5vmin;
         }
+
+        /* --- TAMBAHAN CSS LEADERBOARD & FORM --- */
+        #leaderboard-screen {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+            color: white;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .leaderboard-table {
+            width: 100%;
+            max-width: 600px;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 3vmin;
+        }
+
+        .leaderboard-table th, .leaderboard-table td {
+            border: 1px solid #00ffff;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .leaderboard-table th {
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #00ffff;
+        }
+
+        input[type="text"] {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #00ffff;
+            color: #fff;
+            padding: 10px;
+            font-size: 3vmin;
+            margin-bottom: 10px;
+            width: 80%;
+            max-width: 300px;
+            border-radius: 5px;
+            text-align: center;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            box-shadow: 0 0 10px #00ffff;
+        }
     </style>
 </head>
 <body>
@@ -218,7 +276,17 @@
     <div id="game-over">
         <h1>GAME OVER</h1>
         <p>Skor Akhir: <span id="final-score" style="color:#00ffff; font-weight:bold;">0</span></p>
-        <button onclick="resetGame()">MAIN LAGI</button>
+        
+        <div id="checking-leaderboard" style="display:none; color: #ffaa00; margin-top: 2vh; font-size: 3vmin;">Mengecek Peringkat Markas Pusat...</div>
+        
+        <div id="submit-score-form" style="display:none; margin-top: 2vh; width: 100%; flex-direction: column; align-items: center;">
+            <p style="color:#00ff00; font-weight:bold; margin-bottom: 1vh; font-size: 4vmin;">SELAMAT! KAMU MASUK TOP 10!</p>
+            <input type="text" id="input-nama" placeholder="Masukkan Nama" maxlength="20">
+            <input type="text" id="input-sekolah" placeholder="Nama Sekolah" maxlength="30">
+            <button id="btn-submit-score" onclick="submitScore()" style="margin-top: 1vh; font-size: 3vmin;">SIMPAN SKOR</button>
+        </div>
+
+        <button id="btn-restart" onclick="resetGame()" style="display:none;">MAIN LAGI</button>
     </div>
 
     <!-- Layar Mulai -->
@@ -227,6 +295,16 @@
         <p>Tabrak jawaban BENAR, hindari yang SALAH!</p>
         <p class="controls-hint">Geser Layar (Touch) atau Keyboard Panah</p>
         <button onclick="startGame()">MULAI MISI</button>
+        <button onclick="showLeaderboard()" style="margin-top: 2vh; background: linear-gradient(45deg, #ff00ff, #8800ff); box-shadow: 0 0 20px #ff00ff;">LEADERBOARD</button>
+    </div>
+
+    <!-- Layar Leaderboard -->
+    <div id="leaderboard-screen">
+        <h1 style="color: #00ffff; font-size: 6vmin;">TOP 10 KOMANDAN</h1>
+        <div id="leaderboard-content" style="width: 100%; display: flex; justify-content: center; overflow-x: auto;">
+            <p>Memuat data...</p>
+        </div>
+        <button onclick="closeLeaderboard()" style="margin-top: 3vh; background: #555; box-shadow: none;">KEMBALI</button>
     </div>
 
     <!-- Container untuk label jawaban dinamis -->
@@ -266,6 +344,13 @@
         const startScreen = document.getElementById('start-screen');
         const labelsContainer = document.getElementById('labels-container');
         
+        // Element Leaderboard
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
+        const leaderboardContent = document.getElementById('leaderboard-content');
+        
+        // URL Google Apps Script Anda
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoJBHB9c-mFsPoYN9QyHLLJSd70M-_3k4AIf_vS1FYN9955BxC03AyjIukwYODjaJ0/exec';
+
         // Elemen Nyawa (Bar)
         const lifeBars = [
             document.getElementById('life-1'),
@@ -534,6 +619,139 @@
             finalScoreEl.innerText = score;
             gameOverScreen.style.display = 'flex';
             createExplosion(ship.position, 0xff0000);
+            
+            // Cek skor ke server
+            checkLeaderboardEligibility();
+        }
+
+        // --- SISTEM LEADERBOARD ---
+        async function checkLeaderboardEligibility() {
+            const checkText = document.getElementById('checking-leaderboard');
+            const submitForm = document.getElementById('submit-score-form');
+            const restartBtn = document.getElementById('btn-restart');
+
+            checkText.style.display = 'block';
+            submitForm.style.display = 'none';
+            restartBtn.style.display = 'none';
+
+            try {
+                const response = await fetch(SCRIPT_URL + '?action=get');
+                const data = await response.json();
+                
+                // Urutkan dari skor tertinggi
+                data.sort((a, b) => b.skor - a.skor);
+                
+                // Cek apakah masuk top 10 (dan skor > 0)
+                const isTop10 = score > 0 && (data.length < 10 || score > data[Math.min(data.length - 1, 9)].skor);
+
+                checkText.style.display = 'none';
+
+                if (isTop10) {
+                    submitForm.style.display = 'flex';
+                } else {
+                    restartBtn.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Gagal mengecek leaderboard:', error);
+                checkText.style.display = 'none';
+                restartBtn.style.display = 'block'; // Fallback jika offline
+            }
+        }
+
+        async function submitScore() {
+            const nama = document.getElementById('input-nama').value.trim();
+            const sekolah = document.getElementById('input-sekolah').value.trim();
+            const btn = document.getElementById('btn-submit-score');
+
+            if (!nama || !sekolah) {
+                alert('Komandan! Harap isi Nama dan Sekolah.');
+                return;
+            }
+
+            btn.innerText = 'MENYIMPAN...';
+            btn.disabled = true;
+
+            const payload = { nama: nama, sekolah: sekolah, skor: score };
+
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    // Menggunakan text/plain agar tidak terkena blokir CORS preflight browser
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+
+                document.getElementById('submit-score-form').style.display = 'none';
+                document.getElementById('btn-restart').style.display = 'block';
+                
+                // Kosongkan inputan
+                document.getElementById('input-nama').value = '';
+                document.getElementById('input-sekolah').value = '';
+                
+                // Tampilkan leaderboard
+                showLeaderboard();
+            } catch (e) {
+                console.error('Gagal menyimpan skor:', e);
+                alert('Gagal menghubungi markas. Periksa koneksi internet Anda.');
+            } finally {
+                btn.innerText = 'SIMPAN SKOR';
+                btn.disabled = false;
+            }
+        }
+
+        async function showLeaderboard() {
+            // Sembunyikan layar sebelumnya
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            leaderboardScreen.style.display = 'flex';
+            leaderboardContent.innerHTML = '<p>Menghubungkan ke markas pusat...</p>';
+
+            try {
+                const response = await fetch(SCRIPT_URL + '?action=get');
+                const data = await response.json();
+                
+                // Urutkan skor dari besar ke kecil
+                data.sort((a, b) => b.skor - a.skor);
+
+                let html = '<table class="leaderboard-table">';
+                html += '<tr><th>#</th><th>NAMA</th><th>SEKOLAH</th><th>SKOR</th></tr>';
+                
+                if (data.length === 0) {
+                    html += '<tr><td colspan="4" style="text-align:center;">Belum ada komandan yang terdaftar.</td></tr>';
+                } else {
+                    data.slice(0, 10).forEach((row, index) => {
+                        html += `<tr>
+                            <td>${index + 1}</td>
+                            <td>${escapeHTML(row.nama)}</td>
+                            <td>${escapeHTML(row.sekolah)}</td>
+                            <td><strong style="color:#00ff00;">${row.skor}</strong></td>
+                        </tr>`;
+                    });
+                }
+                html += '</table>';
+                leaderboardContent.innerHTML = html;
+            } catch (error) {
+                leaderboardContent.innerHTML = '<p style="color:#ff0000;">Koneksi ke markas terputus.</p>';
+            }
+        }
+
+        function closeLeaderboard() {
+            leaderboardScreen.style.display = 'none';
+            
+            // Jika dalam status main lagi (Game Over)
+            if (!isPlaying && document.getElementById('btn-restart').style.display === 'block') {
+                gameOverScreen.style.display = 'flex';
+            } else if (!isPlaying) {
+                // Jika dipanggil dari Start Screen
+                startScreen.style.display = 'flex';
+            }
+        }
+
+        // Mencegah XSS Attack pada nama/sekolah
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
+            );
         }
 
         function cleanupWave() {
