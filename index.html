@@ -279,8 +279,17 @@
         
         <div id="checking-leaderboard" style="display:none; color: #ffaa00; margin-top: 2vh; font-size: 3vmin;">Mengecek Peringkat Markas Pusat...</div>
         
-        <div id="submit-score-form" style="display:none; margin-top: 2vh; width: 100%; flex-direction: column; align-items: center;">
+        <!-- Prompt Pertanyaan Simpan Skor (BARU) -->
+        <div id="save-prompt" style="display:none; margin-top: 2vh; flex-direction: column; align-items: center;">
             <p style="color:#00ff00; font-weight:bold; margin-bottom: 1vh; font-size: 4vmin;">SELAMAT! KAMU MASUK TOP 10!</p>
+            <p style="font-size: 3vmin; margin-bottom: 2vh;">Simpan skor ke markas pusat?</p>
+            <div style="display: flex; gap: 4vw;">
+                <button onclick="acceptSaveScore()" style="background: linear-gradient(45deg, #00ff00, #008800); box-shadow: 0 0 15px #00ff00; padding: 1.5vmin 4vmin; margin-top: 0;">YA</button>
+                <button onclick="declineSaveScore()" style="background: linear-gradient(45deg, #ff0000, #880000); box-shadow: 0 0 15px #ff0000; padding: 1.5vmin 4vmin; margin-top: 0;">TIDAK</button>
+            </div>
+        </div>
+
+        <div id="submit-score-form" style="display:none; margin-top: 2vh; width: 100%; flex-direction: column; align-items: center;">
             <input type="text" id="input-nama" placeholder="Masukkan Nama" maxlength="20">
             <input type="text" id="input-sekolah" placeholder="Nama Sekolah" maxlength="30">
             <button id="btn-submit-score" onclick="submitScore()" style="margin-top: 1vh; font-size: 3vmin;">SIMPAN SKOR</button>
@@ -627,10 +636,12 @@
         // --- SISTEM LEADERBOARD ---
         async function checkLeaderboardEligibility() {
             const checkText = document.getElementById('checking-leaderboard');
+            const savePrompt = document.getElementById('save-prompt');
             const submitForm = document.getElementById('submit-score-form');
             const restartBtn = document.getElementById('btn-restart');
 
             checkText.style.display = 'block';
+            savePrompt.style.display = 'none';
             submitForm.style.display = 'none';
             restartBtn.style.display = 'none';
 
@@ -647,7 +658,7 @@
                 checkText.style.display = 'none';
 
                 if (isTop10) {
-                    submitForm.style.display = 'flex';
+                    savePrompt.style.display = 'flex'; // Tampilkan pertanyaan YA/TIDAK
                 } else {
                     restartBtn.style.display = 'block';
                 }
@@ -656,6 +667,18 @@
                 checkText.style.display = 'none';
                 restartBtn.style.display = 'block'; // Fallback jika offline
             }
+        }
+
+        // Fungsi saat menekan YA
+        function acceptSaveScore() {
+            document.getElementById('save-prompt').style.display = 'none';
+            document.getElementById('submit-score-form').style.display = 'flex';
+        }
+
+        // Fungsi saat menekan TIDAK
+        function declineSaveScore() {
+            document.getElementById('save-prompt').style.display = 'none';
+            document.getElementById('btn-restart').style.display = 'block';
         }
 
         async function submitScore() {
